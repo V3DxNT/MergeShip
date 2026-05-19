@@ -12,22 +12,22 @@ vi.mock('@/lib/cache', () => ({
   cacheSet: vi.fn(),
 }));
 
-const mockSupabase = (mockTables: Record<string, any>) => {
+const mockSupabase = (mockTables: Record<string, unknown>) => {
   const mockClient = {
-    _currentTable: '',
     from: vi.fn().mockImplementation((table: string) => {
-      mockClient._currentTable = table;
-      return mockClient;
+      const chain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockImplementation(() => {
+          return Promise.resolve({ data: (mockTables[table] as unknown) ?? null });
+        }),
+        then: function (resolve: (value: unknown) => void) {
+          resolve({ data: (mockTables[table] as unknown) ?? null });
+        },
+      };
+      return chain;
     }),
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    maybeSingle: vi.fn().mockImplementation(() => {
-      return Promise.resolve({ data: mockTables[mockClient._currentTable] ?? null });
-    }),
-    then: function (resolve: any) {
-      resolve({ data: mockTables[mockClient._currentTable] ?? null });
-    },
   };
   return mockClient;
 };
@@ -42,7 +42,7 @@ describe('isUserMaintainer', () => {
     vi.mocked(getServiceSupabase).mockReturnValue(
       mockSupabase({
         github_installation_users: [{ github_installations: { uninstalled_at: null } }],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
 
     const result = await isUserMaintainer('user1');
@@ -58,7 +58,7 @@ describe('isUserMaintainer', () => {
           { github_installations: { uninstalled_at: '2023-01-01T00:00:00Z' } },
           { github_installations: { uninstalled_at: '2023-02-01T00:00:00Z' } },
         ],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
 
     const result = await isUserMaintainer('user1');
@@ -71,7 +71,7 @@ describe('isUserMaintainer', () => {
     vi.mocked(getServiceSupabase).mockReturnValue(
       mockSupabase({
         github_installation_users: [],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
 
     const result = await isUserMaintainer('user1');
@@ -81,7 +81,7 @@ describe('isUserMaintainer', () => {
 
   it('returns false when service client is not configured', async () => {
     vi.mocked(cacheGet).mockResolvedValue(null);
-    vi.mocked(getServiceSupabase).mockReturnValue(null as any);
+    vi.mocked(getServiceSupabase).mockReturnValue(null);
 
     const result = await isUserMaintainer('user1');
     expect(result).toBe(false);
@@ -102,7 +102,7 @@ describe('isUserMaintainer', () => {
     vi.mocked(getServiceSupabase).mockReturnValue(
       mockSupabase({
         github_installation_users: [],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
 
     await isUserMaintainer('user1');
@@ -129,7 +129,7 @@ describe('listMaintainerInstalls', () => {
             },
           },
         ],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
 
     const result = await listMaintainerInstalls('user1');
@@ -166,7 +166,7 @@ describe('listMaintainerInstalls', () => {
             },
           },
         ],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
 
     const result = await listMaintainerInstalls('user1');
@@ -184,8 +184,15 @@ describe('listMaintainerInstalls', () => {
     vi.mocked(getServiceSupabase).mockReturnValue(
       mockSupabase({
         github_installation_users: [],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
+
+    const result = await listMaintainerInstalls('user1');
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty array when service client is not configured', async () => {
+    vi.mocked(getServiceSupabase).mockReturnValue(null);
 
     const result = await listMaintainerInstalls('user1');
     expect(result).toEqual([]);
@@ -205,7 +212,7 @@ describe('listMaintainerRepos', () => {
           { repo_full_name: 'org/repo1' },
           { repo_full_name: 'org/repo2' },
         ],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
 
     const result = await listMaintainerRepos('user1', 1);
@@ -217,7 +224,7 @@ describe('listMaintainerRepos', () => {
       mockSupabase({
         github_installation_users: { permission_level: 'repo_admin' },
         installation_user_repos: [{ repo_full_name: 'org/repo1' }],
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
 
     const result = await listMaintainerRepos('user1', 1);
@@ -228,8 +235,15 @@ describe('listMaintainerRepos', () => {
     vi.mocked(getServiceSupabase).mockReturnValue(
       mockSupabase({
         github_installation_users: null,
-      }) as any,
+      }) as unknown as ReturnType<typeof getServiceSupabase>,
     );
+
+    const result = await listMaintainerRepos('user1', 1);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty array when service client is not configured', async () => {
+    vi.mocked(getServiceSupabase).mockReturnValue(null);
 
     const result = await listMaintainerRepos('user1', 1);
     expect(result).toEqual([]);
